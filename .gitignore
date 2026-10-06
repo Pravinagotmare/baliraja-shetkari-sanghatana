@@ -1,0 +1,13 @@
+.env
+.streamlit/secrets.toml
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Member-specific and generated files must never go to the public source repo.
+/uploads/
+/receipts/
+/backups/
+/exports/
+/tmp/
