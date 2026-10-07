@@ -7,6 +7,7 @@ from db import query, execute
 def hash_password(password):
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
+@st.cache_resource
 def seed_admin():
     username = setting("APP_ADMIN_USERNAME", "admin")
     password = setting("APP_ADMIN_PASSWORD", "")
@@ -32,6 +33,14 @@ def login():
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
+
+    if st.button(
+        "← Back to Main Page / मुख्य पृष्ठावर परत जा",
+        key="back_to_public_site",
+        use_container_width=True,
+    ):
+        st.session_state.portal_mode = "🌐 सार्वजनिक संकेतस्थळ"
+        st.rerun()
 
     if submitted:
         rows = query(

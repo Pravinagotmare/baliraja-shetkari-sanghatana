@@ -12,18 +12,6 @@ from config import setting
 
 from db import query, execute
 from auth import login, seed_admin, is_admin, hash_password
-import reports as report_module
-report_module = importlib.reload(report_module)
-members_report = report_module.members_report
-payments_report = report_module.payments_report
-excel_report = report_module.excel_report
-member_payments_report = report_module.member_payments_report
-printable_pdf = report_module.printable_pdf
-from services.receipt import make_receipt
-from services.upi import create_upi_qr
-from services.whatsapp import configuration as whatsapp_configuration
-from services.whatsapp import missing_configuration, normalize_indian_mobile
-from services.whatsapp import send_template_message
 
 BASE = Path(__file__).resolve().parent
 LOGO = BASE / "assets" / "baliraja-logo.jpg"
@@ -39,6 +27,12 @@ PUBLIC_GALLERY.mkdir(exist_ok=True)
 PUBLIC_VIDEOS = BASE / "assets" / "public_videos"
 PUBLIC_VIDEOS.mkdir(exist_ok=True)
 MAX_PUBLIC_VIDEO_BYTES = 150 * 1024 * 1024
+
+
+@st.cache_data
+def encoded_image(path):
+    """Encode static site images once instead of rereading them on reruns."""
+    return base64.b64encode(Path(path).read_bytes()).decode("ascii")
 
 
 def show_table(frame, **kwargs):
@@ -107,16 +101,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-seed_admin()
-
 # Public information pages are available without an employee account. Keep
 # this gallery separate from member portraits and other private uploads.
-public_view = st.radio(
-    "संकेतस्थळ / कर्मचारी विभाग",
-    ["🌐 सार्वजनिक संकेतस्थळ", "🔐 Admin Login"],
-    horizontal=True,
-    key="portal_mode",
-)
+portal_options = ["🌐 सार्वजनिक संकेतस्थळ", "🔐 Admin Login"]
+if "portal_mode" not in st.session_state:
+    st.session_state.portal_mode = portal_options[0]
+
+public_view = st.session_state.portal_mode
 if public_view == "🌐 सार्वजनिक संकेतस्थळ":
     st.markdown("""<style>
     [data-testid="stAppViewContainer"] {background:linear-gradient(180deg,#edf7ec 0%,#fbfcf7 48%,#f3f8ed 100%)}
@@ -146,6 +137,17 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
     [data-testid="stTabs"] button,
     [data-testid="stTabs"] [role="tab"],
     [data-baseweb="tab"] {color:#405449 !important}
+    [class*="st-key-public_website_tabs"] [role="radiogroup"] {display:flex;flex-wrap:nowrap;gap:0;overflow-x:auto;background:#174d32;border-radius:8px}
+    [class*="st-key-public_website_tabs"] label[data-baseweb="radio"] {flex:1 0 auto;justify-content:center;margin:0;padding:.55rem .7rem;border-right:1px solid #47775b;border-radius:0;background:#174d32 !important;color:#fff !important;white-space:nowrap}
+    [class*="st-key-public_website_tabs"] label[data-baseweb="radio"] * {color:#fff !important}
+    [class*="st-key-public_website_tabs"] label[data-baseweb="radio"] > div:first-child {display:none}
+    [class*="st-key-public_website_tabs"] label[data-baseweb="radio"] svg,
+    [class*="st-key-public_website_tabs"] label[data-baseweb="radio"] input[type="radio"] {opacity:0 !important;position:absolute;width:1px;height:1px}
+    [class*="st-key-public_website_tabs"] label[data-baseweb="radio"]:has(input:checked) {background:#e4f1e1 !important;border:1px solid #287a42;border-radius:7px;color:#174d32 !important}
+    [class*="st-key-public_website_tabs"] label[data-baseweb="radio"]:has(input:checked) * {color:#174d32 !important}
+    [class*="st-key-public-menu-mobile"] {display:none}
+    @media(max-width:700px) {[class*="st-key-public-menu-desktop"]{display:none!important}[class*="st-key-public-menu-mobile"]{display:block!important}[class*="st-key-public-menu-mobile"] [data-baseweb="select"]>div{min-height:44px;background:#174d32!important;border:1px solid #bd9637!important;border-radius:10px!important;color:#fff!important}[class*="st-key-public-menu-mobile"] [data-baseweb="select"] *{color:#fff!important}[data-baseweb="popover"] [role="listbox"]{background:#fff!important}[data-baseweb="popover"] [role="option"]{color:#28573a!important}[data-baseweb="popover"] [role="option"]:hover{background:#e5f2e5!important}}
+    @media(max-width:700px) {[data-testid="stMain"] .block-container{padding:.55rem}.site-hero{box-sizing:border-box;min-height:86px;padding:6px 9px;margin:0 0 8px;background-size:100% 100%!important;background-position:center;border:1px solid #bd9637;border-radius:13px;box-shadow:0 4px 12px rgba(23,77,50,.16)}.site-hero::before{display:block;background:rgba(12,35,21,.42)}.site-hero-brand{align-items:center;justify-content:flex-start;gap:8px;width:100%;max-width:none}.site-logo{width:46px;height:46px;padding:3px;border:2px solid #f0d17a;box-shadow:0 2px 8px rgba(0,0,0,.2)}.site-hero-copy{display:block;min-width:0;max-width:none}.site-hero-copy .site-location,.site-hero-copy>p:not(.site-address){display:none}.site-hero-copy h1{font-size:15px;line-height:1.15;overflow-wrap:anywhere}.site-hero-copy .site-address{display:block;margin:3px 0 0;color:#e6f1e8!important;font-size:8px;line-height:1.25}.home-intro h2{font-size:21px}.home-focus{grid-template-columns:1fr;gap:18px;padding:20px 0}.home-focus-item{padding-top:9px}[class*="st-key-public_website_tabs"]{width:100%;padding:7px;background:#fff;border:1px solid #d7e5d8;border-radius:13px;box-shadow:0 3px 12px rgba(25,77,51,.08)}[class*="st-key-public_website_tabs"] [role="radiogroup"]{display:flex;flex-direction:column;overflow:visible;background:transparent;gap:4px}[class*="st-key-public_website_tabs"] label[data-baseweb="radio"]{width:100%;min-height:38px;box-sizing:border-box;justify-content:flex-start;padding:.45rem .75rem;border:1px solid transparent;border-radius:8px;background:#f5f8f3 !important;color:#28573a !important;box-shadow:none;font-size:14px}[class*="st-key-public_website_tabs"] label[data-baseweb="radio"] *{color:#28573a !important}[class*="st-key-public_website_tabs"] label[data-baseweb="radio"]:has(input:checked){background:#e5f2e5 !important;border:1px solid #c6dec8;border-left:4px solid #287a42;border-radius:8px;color:#174d32 !important;font-weight:800}[class*="st-key-public_website_tabs"] label[data-baseweb="radio"]:has(input:checked) *{color:#174d32 !important}}
     .site-hero {position:relative;isolation:isolate;box-sizing:border-box;min-height:315px;width:100%;display:flex;align-items:center;padding:38px 48px;margin-bottom:16px;background-size:cover;background-position:center 46%;overflow:hidden}
     .site-hero::before {content:"";position:absolute;inset:0;z-index:-1;background:rgba(12,35,21,.56)}
     .site-hero-brand {display:flex;align-items:center;gap:20px;max-width:860px}
@@ -182,25 +184,59 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
     [data-testid="stMain"] .stButton button {background:#287a42;color:white;border:0;border-radius:10px}
     [data-testid="stMain"] .stButton button:hover {background:#195d32;color:white}
     [data-testid="stMain"] [role="radiogroup"] label {background:#e4f1e1;border-radius:10px;padding:.35rem .65rem}
-    @media(max-width:700px) {[data-testid="stMain"] .block-container{padding:.7rem}.site-hero{min-height:270px;padding:24px 20px;background-position:67% center}.site-hero-brand{align-items:flex-start;gap:12px}.site-logo{width:58px;height:58px;padding:5px}.site-hero-copy h1{font-size:29px}.site-hero-copy p{font-size:15px}.home-intro h2{font-size:21px}.home-focus{grid-template-columns:1fr;gap:18px;padding:20px 0}.home-focus-item{padding-top:9px}}
     @media(prefers-reduced-motion:reduce){.news-track{animation:none;width:auto;white-space:normal;flex-wrap:wrap}.news-item{white-space:normal}}
     </style>""", unsafe_allow_html=True)
-    banner_data = base64.b64encode((BASE / "assets" / "maharashtra-farming-banner.png").read_bytes()).decode("ascii")
-    logo_data = base64.b64encode(LOGO.read_bytes()).decode("ascii")
+    banner_data = encoded_image(BASE / "assets" / "maharashtra-farming-banner.png")
+    logo_data = encoded_image(LOGO)
     st.markdown(
         f"<section class='site-hero' style='background-image:url(data:image/png;base64,{banner_data})'>"
         f"<div class='site-hero-brand'><img class='site-logo' src='data:image/jpeg;base64,{logo_data}' alt='बळीराजा शेतकरी संघटनेचा लोगो'>"
         "<div class='site-hero-copy'><p class='site-location'>नागपूर जिल्हा · महाराष्ट्र</p>"
         "<h1 style='color:#fff!important;font-weight:900!important;text-shadow:0 2px 9px rgba(0,0,0,.9)'>बळीराजा शेतकरी संघटना</h1>"
-        "<p>शेतकऱ्यांच्या हक्कांसाठी संघटित व्यासपीठ</p></div></div></section>",
+        "<p>शेतकऱ्यांच्या हक्कांसाठी संघटित व्यासपीठ</p>"
+        "<p class='site-address'>मुख्य कार्यालय: शॉप न. २१, कृषी उत्पन्न बाजार समिती संकुल, कळमेश्वर, जि. नागपूर–५५१५०१</p></div></div></section>",
         unsafe_allow_html=True,
     )
-    tabs = st.tabs(
-        ["मुखपृष्ठ", "आमच्याबद्दल", "कार्यकारी मंडळ", "कार्यक्रम", "छायाचित्र दालन", "व्हिडिओ दालन", "संपर्क", "संस्थेचे नियम"],
-        on_change="rerun",
-        key="public_website_tabs",
-    )
-    with tabs[0]:
+    public_sections = ["मुखपृष्ठ", "आमच्याबद्दल", "कार्यकारी मंडळ", "कार्यक्रम", "छायाचित्र दालन", "व्हिडिओ दालन", "संपर्क", "संस्थेचे नियम"]
+    def sync_desktop_menu():
+        section = st.session_state.public_website_tabs
+        if section == portal_options[1]:
+            st.session_state.portal_mode = portal_options[1]
+            section = public_sections[0]
+            st.session_state.public_website_tabs = section
+        st.session_state.mobile_public_menu = section
+
+    def sync_mobile_menu():
+        section = st.session_state.mobile_public_menu
+        if section == portal_options[1]:
+            st.session_state.portal_mode = portal_options[1]
+            section = public_sections[0]
+            st.session_state.mobile_public_menu = section
+        st.session_state.public_website_tabs = section
+
+    if st.session_state.get("public_website_tabs") not in public_sections:
+        st.session_state.public_website_tabs = public_sections[0]
+    if st.session_state.get("mobile_public_menu") not in [*public_sections, portal_options[1]]:
+        st.session_state.mobile_public_menu = st.session_state.public_website_tabs
+    with st.container(key="public-menu-desktop"):
+        st.radio(
+            "संकेतस्थळ विभाग",
+            [*public_sections, portal_options[1]],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="public_website_tabs",
+            on_change=sync_desktop_menu,
+        )
+    with st.container(key="public-menu-mobile"):
+        st.selectbox(
+            "मुख्य मेनू",
+            [*public_sections, portal_options[1]],
+            label_visibility="collapsed",
+            key="mobile_public_menu",
+            on_change=sync_mobile_menu,
+        )
+    selected_public_section = st.session_state.public_website_tabs
+    if selected_public_section == public_sections[0]:
         st.markdown("""
         <section class="news-strip" aria-label="नवीन घडामोडी">
           <div class="news-label">नवीन घडामोडी</div>
@@ -226,11 +262,11 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
         <section class="home-office"><strong>मुख्य कार्यालय</strong><br>शॉप न.२१, कृषी उत्पन्न बाजार समिती संकुल, कळमेश्वर, जी. नागपूर-५५१५०१<br><a href="tel:77749122320">संपर्क: ७७७४९१२२३२०</a> &nbsp; · &nbsp; <a href="https://www.youtube.com/@BalirajaShetkariSanghatana" target="_blank" rel="noopener noreferrer">YouTube चॅनेल पहा</a></section>
         """, unsafe_allow_html=True)
         st.info("कार्यक्रमांच्या तारखा आणि तपशील आयोजकांकडून निश्चित झाल्यानंतर येथे प्रसिद्ध केले जातील.")
-    with tabs[1]:
+    if selected_public_section == public_sections[1]:
         st.subheader("संघटनेबद्दल")
         st.write("बळीराजा शेतकरी संघटना ही शेतकरी बांधवांच्या प्रश्नांवर संवाद साधण्यासाठी आणि त्यांच्या हितासाठी एकत्र काम करण्यासाठीचे व्यासपीठ आहे.")
         st.write("संघटनेच्या उद्दिष्टांबद्दल, सदस्यत्वाबद्दल किंवा स्थानिक उपक्रमांबद्दल अधिक माहितीसाठी मुख्य कार्यालयाशी संपर्क साधा.")
-    with tabs[2]:
+    if selected_public_section == public_sections[2]:
         st.subheader("कार्यकारी मंडळ")
         president = EXECUTIVE_BODY[0]
         vice_presidents = EXECUTIVE_BODY[1:3]
@@ -241,7 +277,7 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
             _, designation, member_name, _, _ = person
             photo_html = "<span aria-hidden='true'>📷</span>"
             if portrait and portrait.exists():
-                photo_data = base64.b64encode(portrait.read_bytes()).decode("ascii")
+                photo_data = encoded_image(portrait)
                 photo_html = f"<img src='data:image/jpeg;base64,{photo_data}' alt='{html.escape(member_name)}'>"
             return (
                 f"<div class='org-node {extra_class}'><div class='org-photo'>{photo_html}</div>"
@@ -287,7 +323,7 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
             columns=["पद", "नाव", "पत्ता", "मोबाईल"]
         )
         show_table(executive_contacts, use_container_width=True, hide_index=True)
-    with tabs[3]:
+    if selected_public_section == public_sections[3]:
         st.subheader("सभा व संघटनेचे ठराव")
         st.markdown("### सभा क्रमांक ०४ — ०८ जुलै २०२६")
         st.markdown("**बळीराजा शेतकरी संघटना, कळमेश्वर तालुका**  \n**आवाहन:** तालुक्यातील नवीन आउटर रिंग रोड बाधित सर्व शेतकऱ्यांसाठी  \n**ठिकाण:** स्व. बाबासाहेब केदार हॉल, संत्रा मंडी, कळमेश्वर  \n**वेळ:** दुपारी १.०० वाजता (१ pm)")
@@ -323,7 +359,7 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
             6. तहसीलदारांना निवेदन देणे.
             """)
         st.caption("सभा आयोजित करण्यासाठी हॉल उपलब्ध करून दिल्याबद्दल अनिरुद्धजी जोशी यांचे विशेष आभार. 🙏")
-    with tabs[4]:
+    if selected_public_section == public_sections[4]:
         st.subheader("छायाचित्र दालन")
         gallery_images = sorted(p for p in PUBLIC_GALLERY.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"})
         gallery_captions = {
@@ -346,28 +382,31 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
                 )
         else:
             st.caption("कार्यक्रमांची छायाचित्रे लवकरच येथे जोडली जातील.")
-    with tabs[5]:
+    if selected_public_section == public_sections[5]:
         st.subheader("व्हिडिओ दालन")
         video_files = sorted(
             p for p in PUBLIC_VIDEOS.iterdir()
             if p.suffix.lower() in {".mp4", ".webm", ".mov", ".m4v"}
         )
-        if video_files and tabs[5].open:
-            for video in video_files:
-                st.markdown(f"#### {html.escape(video.stem.replace('-', ' ').replace('_', ' '))}")
-                if video.stat().st_size > MAX_PUBLIC_VIDEO_BYTES:
-                    st.warning("हा व्हिडिओ फाइल आकाराने मोठा असल्यामुळे येथे प्ले करता येत नाही. कृपया लहान किंवा कमी आकाराची आवृत्ती अपलोड करा.")
-                else:
-                    st.video(str(video))
+        if video_files:
+            video = st.selectbox(
+                "व्हिडिओ निवडा",
+                video_files,
+                format_func=lambda path: path.stem.replace('-', ' ').replace('_', ' '),
+            )
+            if video.stat().st_size > MAX_PUBLIC_VIDEO_BYTES:
+                st.warning("हा व्हिडिओ फाइल आकाराने मोठा असल्यामुळे येथे प्ले करता येत नाही. कृपया लहान किंवा कमी आकाराची आवृत्ती अपलोड करा.")
+            else:
+                st.video(str(video))
         elif not video_files:
             st.info("व्हिडिओ लवकरच येथे जोडले जातील.")
         st.markdown("[संघटनेचे YouTube चॅनेल पहा](https://www.youtube.com/@BalirajaShetkariSanghatana)")
-    with tabs[6]:
+    if selected_public_section == public_sections[6]:
         st.subheader("मुख्य कार्यालय")
         st.write("शॉप न.२१, कृषी उत्पन्न बाजार समिती संकुल, कळमेश्वर,जी. नागपूर-५५१५०१")
         st.markdown("फोन / WhatsApp: [७७७४९१२२३२०](tel:77749122320)")
         st.write("कार्यालयीन वेळ व ईमेलसाठी कृपया प्रत्यक्ष कार्यालयाशी संपर्क साधा.")
-    with tabs[7]:
+    if selected_public_section == public_sections[7]:
         st.subheader("संस्थेचे नियम व नियमपुस्तिका")
         st.markdown("**Memorandum of Association — संस्थेचे ज्ञापन पत्र**")
         st.markdown("**१. संस्थेचे नाव:** बळीराजा शेतकरी संघटना")
@@ -405,56 +444,75 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
     st.caption("बळीराजा शेतकरी संघटना")
     st.stop()
 
-# Additional ledger for income and expenditure not already recorded as
-# member payments. Kept separate so membership receipts are never counted twice.
-execute('''CREATE TABLE IF NOT EXISTS cash_book_entries(
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    entry_type ENUM('Income','Expenditure') NOT NULL,
-    category VARCHAR(120) NOT NULL,
-    description TEXT,
-    amount DECIMAL(12,2) NOT NULL,
-    entry_date DATE NOT NULL,
-    payment_method ENUM('Cash','UPI','Bank') NOT NULL DEFAULT 'Cash',
-    created_by INT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(created_by) REFERENCES users(id)
-)''')
-payment_type_column = query('''SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payments' AND COLUMN_NAME='payment_type' ''')
-if payment_type_column and "Other Contribution" not in payment_type_column[0]["COLUMN_TYPE"]:
-    execute("ALTER TABLE payments MODIFY payment_type ENUM('Membership Fee','Other Contribution','Donation') NOT NULL")
-for table_name in ("members", "payments"):
-    date_column = query('''SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s''',
-        (table_name, "registration_date" if table_name == "members" else "payment_date"))
-    if date_column and date_column[0]["IS_NULLABLE"] == "NO":
-        date_field = "registration_date" if table_name == "members" else "payment_date"
-        execute(f"ALTER TABLE {table_name} MODIFY {date_field} DATE NULL")
+# Admin seeding is needed only in the employee area.
+seed_admin()
 
-whatsapp_opt_in_column = query('''SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='members' AND COLUMN_NAME='whatsapp_opt_in' ''')
-if not whatsapp_opt_in_column:
-    execute("ALTER TABLE members ADD COLUMN whatsapp_opt_in TINYINT(1) NOT NULL DEFAULT 0")
-execute('''CREATE TABLE IF NOT EXISTS whatsapp_message_logs(
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    batch_id CHAR(36) NOT NULL,
-    member_id INT NULL,
-    recipient_phone VARCHAR(20) NOT NULL,
-    template_name VARCHAR(100) NOT NULL,
-    status ENUM('accepted','failed') NOT NULL,
-    provider_message_id VARCHAR(255),
-    error_text TEXT,
-    sent_by INT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_whatsapp_batch(batch_id),
-    FOREIGN KEY(member_id) REFERENCES members(id) ON DELETE SET NULL,
-    FOREIGN KEY(sent_by) REFERENCES users(id) ON DELETE SET NULL
-)''')
+@st.cache_resource
+def initialize_admin_database():
+    # Additional ledger for income and expenditure not already recorded as
+    # member payments. Kept separate so membership receipts are never counted twice.
+    execute('''CREATE TABLE IF NOT EXISTS cash_book_entries(
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        entry_type ENUM('Income','Expenditure') NOT NULL,
+        category VARCHAR(120) NOT NULL,
+        description TEXT,
+        amount DECIMAL(12,2) NOT NULL,
+        entry_date DATE NOT NULL,
+        payment_method ENUM('Cash','UPI','Bank') NOT NULL DEFAULT 'Cash',
+        created_by INT,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(created_by) REFERENCES users(id)
+    )''')
+    payment_type_column = query('''SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payments' AND COLUMN_NAME='payment_type' ''')
+    if payment_type_column and "Other Contribution" not in payment_type_column[0]["COLUMN_TYPE"]:
+        execute("ALTER TABLE payments MODIFY payment_type ENUM('Membership Fee','Other Contribution','Donation') NOT NULL")
+    for table_name in ("members", "payments"):
+        date_column = query('''SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s''',
+            (table_name, "registration_date" if table_name == "members" else "payment_date"))
+        if date_column and date_column[0]["IS_NULLABLE"] == "NO":
+            date_field = "registration_date" if table_name == "members" else "payment_date"
+            execute(f"ALTER TABLE {table_name} MODIFY {date_field} DATE NULL")
+
+    whatsapp_opt_in_column = query('''SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='members' AND COLUMN_NAME='whatsapp_opt_in' ''')
+    if not whatsapp_opt_in_column:
+        execute("ALTER TABLE members ADD COLUMN whatsapp_opt_in TINYINT(1) NOT NULL DEFAULT 0")
+    execute('''CREATE TABLE IF NOT EXISTS whatsapp_message_logs(
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        batch_id CHAR(36) NOT NULL,
+        member_id INT NULL,
+        recipient_phone VARCHAR(20) NOT NULL,
+        template_name VARCHAR(100) NOT NULL,
+        status ENUM('accepted','failed') NOT NULL,
+        provider_message_id VARCHAR(255),
+        error_text TEXT,
+        sent_by INT,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_whatsapp_batch(batch_id),
+        FOREIGN KEY(member_id) REFERENCES members(id) ON DELETE SET NULL,
+        FOREIGN KEY(sent_by) REFERENCES users(id) ON DELETE SET NULL
+    )''')
 
 if not login():
     st.stop()
 
 user = st.session_state.user
+
+import reports as report_module
+members_report = report_module.members_report
+payments_report = report_module.payments_report
+excel_report = report_module.excel_report
+member_payments_report = report_module.member_payments_report
+printable_pdf = report_module.printable_pdf
+from services import receipt as receipt_module
+from services.upi import create_upi_qr
+from services.whatsapp import configuration as whatsapp_configuration
+from services.whatsapp import missing_configuration, normalize_indian_mobile
+from services.whatsapp import send_template_message
+
+initialize_admin_database()
 
 st.sidebar.image(str(LOGO), use_container_width=True)
 st.sidebar.title("बळीराजा")
@@ -479,11 +537,49 @@ menu = [
 if not is_admin():
     menu.remove("📲 WhatsApp संदेश")
 
-page = st.sidebar.radio("Menu", menu)
+st.markdown("""
+<style>
+.st-key-admin-mobile-menu {display:none}
+@media(max-width:700px) {
+  [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none !important}
+  .st-key-admin-mobile-menu {display:block !important;margin:0 0 14px;padding:8px;background:#fff;border:1px solid #d7e5d8;border-radius:12px;box-shadow:0 3px 12px rgba(25,77,51,.08)}
+  .st-key-admin-mobile-menu [data-baseweb="select"]>div {min-height:44px;background:#174d32!important;border:1px solid #bd9637!important;border-radius:10px!important;color:#fff!important}
+  .st-key-admin-mobile-menu [data-baseweb="select"] * {color:#fff!important}
+  .st-key-admin-mobile-menu .stButton>button {background:#f5f8f3!important;color:#28573a!important;border:1px solid #d5e4d6!important;border-radius:9px!important}
+}
+</style>
+""", unsafe_allow_html=True)
 
-if st.sidebar.button("Logout"):
-    st.session_state.clear()
-    st.rerun()
+def sync_admin_page_from_sidebar():
+    st.session_state.admin_page_mobile = st.session_state.admin_page_sidebar
+
+def sync_admin_page_from_mobile():
+    st.session_state.admin_page_sidebar = st.session_state.admin_page_mobile
+
+if st.session_state.get("admin_page_sidebar") not in menu:
+    st.session_state.admin_page_sidebar = menu[0]
+if st.session_state.get("admin_page_mobile") not in menu:
+    st.session_state.admin_page_mobile = st.session_state.admin_page_sidebar
+
+with st.sidebar:
+    st.radio("Menu", menu, key="admin_page_sidebar", on_change=sync_admin_page_from_sidebar)
+    if st.button("Logout", key="admin_sidebar_logout"):
+        st.session_state.clear()
+        st.rerun()
+
+with st.container(key="admin-mobile-menu"):
+    st.selectbox(
+        "Admin menu",
+        menu,
+        label_visibility="collapsed",
+        key="admin_page_mobile",
+        on_change=sync_admin_page_from_mobile,
+    )
+    if st.button("Logout", key="admin_mobile_logout", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
+
+page = st.session_state.admin_page_sidebar
 
 def next_number(prefix, table, column):
     year = datetime.date.today().year
@@ -844,6 +940,74 @@ elif page == "👨‍🌾 Members":
 elif page == "💰 Payments":
     st.title("💰 वर्गणी / देणगी")
 
+    payment_income = float(query(
+        "SELECT COALESCE(SUM(amount),0) AS total FROM payments"
+    )[0]["total"] or 0)
+    other_income = float(query(
+        "SELECT COALESCE(SUM(amount),0) AS total FROM cash_book_entries WHERE entry_type='Income'"
+    )[0]["total"] or 0)
+    expense_total = float(query(
+        "SELECT COALESCE(SUM(amount),0) AS total FROM cash_book_entries WHERE entry_type='Expenditure'"
+    )[0]["total"] or 0)
+    available_balance = payment_income + other_income - expense_total
+
+    st.subheader("शिल्लक रकमेतून खर्च नोंदवा")
+    st.metric("उपलब्ध शिल्लक", f"₹ {available_balance:,.2f}")
+    if available_balance > 0:
+        with st.form("payment_expense_form", clear_on_submit=True):
+            expense_category = st.text_input("खर्चाचा प्रकार / कारण *")
+            expense_description = st.text_area("खर्चाचा तपशील")
+            expense_col_a, expense_col_b = st.columns(2)
+            expense_amount = expense_col_a.number_input(
+                "खर्चाची रक्कम ₹", min_value=0.01, step=100.0
+            )
+            expense_date = expense_col_b.date_input(
+                "खर्चाची तारीख", datetime.date.today()
+            )
+            expense_method = st.selectbox(
+                "खर्चाची भरणा पद्धत", ["Cash", "UPI", "Bank"], key="payment_expense_method"
+            )
+            save_expense = st.form_submit_button("खर्च नोंदवा")
+
+        if save_expense:
+            if not expense_category.strip():
+                st.error("खर्चाचा प्रकार / कारण भरणे आवश्यक आहे.")
+            elif expense_amount > available_balance:
+                st.error(
+                    f"खर्चाची रक्कम उपलब्ध शिल्लक ₹ {available_balance:,.2f} पेक्षा जास्त असू शकत नाही."
+                )
+            else:
+                execute('''INSERT INTO cash_book_entries
+                    (entry_type,category,description,amount,entry_date,payment_method,created_by)
+                    VALUES('Expenditure',%s,%s,%s,%s,%s,%s)''',
+                    (expense_category.strip(), expense_description.strip(), expense_amount,
+                     str(expense_date), expense_method, user["id"]))
+                st.success("खर्च नोंदवला. शिल्लक रकमेतून खर्च वजा केला आहे.")
+                st.rerun()
+    else:
+        st.info("खर्च नोंदवण्यासाठी सध्या उपलब्ध शिल्लक नाही.")
+
+    expense_rows = query('''SELECT entry_date,category,description,amount,payment_method
+        FROM cash_book_entries WHERE entry_type='Expenditure'
+        ORDER BY entry_date DESC,id DESC''')
+    expense_total = sum(float(row["amount"] or 0) for row in expense_rows)
+    st.subheader("नोंदवलेला खर्च")
+    st.metric("एकूण खर्च", f"₹ {expense_total:,.2f}")
+    if expense_rows:
+        expense_table = pd.DataFrame(expense_rows).rename(columns={
+            "entry_date": "दिनांक",
+            "category": "खर्चाचा प्रकार",
+            "description": "तपशील",
+            "amount": "खर्चाची रक्कम",
+            "payment_method": "भरणा पद्धत",
+        })
+        expense_table["खर्चाची रक्कम"] = expense_table["खर्चाची रक्कम"].map(
+            lambda amount: f"₹ {float(amount):,.2f}"
+        )
+        show_table(expense_table, use_container_width=True, hide_index=True)
+    else:
+        st.info("अद्याप खर्चाची नोंद नाही. खर्च नोंदवण्यासाठी ‘जमा-खर्च वही’ वापरा.")
+
     members = query(
         '''SELECT id,member_no,name,mobile
         FROM members WHERE active=1
@@ -956,10 +1120,10 @@ elif page == "🧾 Receipts":
 
     copies = st.selectbox(
         "Print Format",
-        [1,2,3],
+        [2,1,3],
         format_func=lambda x: (
             "1 — Single" if x == 1
-            else "2 — A4 वर 2 पावत्या"
+            else "2 — A4 डुप्लिकेट (ऑफिस + सभासद कॉपी)"
             if x == 2
             else "3 — A4 वर 3 पावत्या"
         )
@@ -970,17 +1134,37 @@ elif page == "🧾 Receipts":
             df["receipt_no"] == receipt_no
         ].iloc[0].to_dict()
 
+        receiver_rows = query('''SELECT u.full_name,u.role
+            FROM payments p LEFT JOIN users u ON u.id=p.created_by
+            WHERE p.receipt_no=%s LIMIT 1''', (receipt_no,))
+        if receiver_rows:
+            receiver = receiver_rows[0]
+            row["received_by"] = receiver["full_name"] or "—"
+            row["receiver_role"] = {
+                "admin": "प्रशासक",
+                "staff": "कर्मचारी",
+            }.get(receiver["role"], receiver["role"] or "—")
+        else:
+            row["received_by"] = "—"
+            row["receiver_role"] = "—"
+
         filename = f"{receipt_no}_{copies}up.pdf"
         path = RECEIPTS / filename
 
-        make_receipt(
+        importlib.reload(receipt_module).make_receipt(
             row,
             setting(
                 "ORG_NAME",
                 "बळीराजा शेतकरी संघटना"
             ),
             path,
-            copies
+            copies,
+            address=setting(
+                "ORG_ADDRESS",
+                "शॉप नं. २१, कृषी उत्पन्न बाजार समिती कॉम्प्लेक्स, कळमेश्वर, जि. नागपूर, महाराष्ट्र–४४१५०१"
+            ),
+            contact=setting("ORG_PHONE", "७७७४९१२२३२०"),
+            logo_path=LOGO,
         )
 
         st.download_button(
