@@ -147,6 +147,26 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
     [class*="st-key-public_website_tabs"] label[data-baseweb="radio"]:has(input:checked) * {color:#174d32 !important}
     [class*="st-key-public-menu-mobile"] {display:none}
     @media(max-width:700px) {[class*="st-key-public-menu-desktop"]{display:none!important}[class*="st-key-public-menu-mobile"]{display:block!important}[class*="st-key-public-menu-mobile"] [data-baseweb="select"]>div{min-height:44px;background:#174d32!important;border:1px solid #bd9637!important;border-radius:10px!important;color:#fff!important}[class*="st-key-public-menu-mobile"] [data-baseweb="select"] *{color:#fff!important}[data-baseweb="popover"] [role="listbox"]{background:#fff!important}[data-baseweb="popover"] [role="option"]{color:#28573a!important}[data-baseweb="popover"] [role="option"]:hover{background:#e5f2e5!important}}
+    @media(max-width:700px) {
+      [class*="st-key-public-menu-mobile"] [data-testid="stSelectbox"],
+      [class*="st-key-public-menu-mobile"] [data-testid="stSelectbox"] *,
+      [class*="st-key-public-menu-mobile"] [data-baseweb="select"],
+      [class*="st-key-public-menu-mobile"] [data-baseweb="select"] * {
+        color:#fff!important;
+        -webkit-text-fill-color:#fff!important;
+        opacity:1!important;
+      }
+      [data-baseweb="popover"] [role="option"],
+      [data-baseweb="popover"] [role="option"] * {
+        color:#174d32!important;
+        -webkit-text-fill-color:#174d32!important;
+      }
+      [data-baseweb="popover"] [role="option"][aria-selected="true"] {
+        background:#e4f1e1!important;
+        color:#174d32!important;
+        font-weight:800!important;
+      }
+    }
     @media(max-width:700px) {[data-testid="stMain"] .block-container{padding:.55rem}.site-hero{box-sizing:border-box;min-height:86px;padding:6px 9px;margin:0 0 8px;background-size:100% 100%!important;background-position:center;border:1px solid #bd9637;border-radius:13px;box-shadow:0 4px 12px rgba(23,77,50,.16)}.site-hero::before{display:block;background:rgba(12,35,21,.42)}.site-hero-brand{align-items:center;justify-content:flex-start;gap:8px;width:100%;max-width:none}.site-logo{width:46px;height:46px;padding:3px;border:2px solid #f0d17a;box-shadow:0 2px 8px rgba(0,0,0,.2)}.site-hero-copy{display:block;min-width:0;max-width:none}.site-hero-copy .site-location,.site-hero-copy>p:not(.site-address){display:none}.site-hero-copy h1{font-size:15px;line-height:1.15;overflow-wrap:anywhere}.site-hero-copy .site-address{display:block;margin:3px 0 0;color:#e6f1e8!important;font-size:8px;line-height:1.25}.home-intro h2{font-size:21px}.home-focus{grid-template-columns:1fr;gap:18px;padding:20px 0}.home-focus-item{padding-top:9px}[class*="st-key-public_website_tabs"]{width:100%;padding:7px;background:#fff;border:1px solid #d7e5d8;border-radius:13px;box-shadow:0 3px 12px rgba(25,77,51,.08)}[class*="st-key-public_website_tabs"] [role="radiogroup"]{display:flex;flex-direction:column;overflow:visible;background:transparent;gap:4px}[class*="st-key-public_website_tabs"] label[data-baseweb="radio"]{width:100%;min-height:38px;box-sizing:border-box;justify-content:flex-start;padding:.45rem .75rem;border:1px solid transparent;border-radius:8px;background:#f5f8f3 !important;color:#28573a !important;box-shadow:none;font-size:14px}[class*="st-key-public_website_tabs"] label[data-baseweb="radio"] *{color:#28573a !important}[class*="st-key-public_website_tabs"] label[data-baseweb="radio"]:has(input:checked){background:#e5f2e5 !important;border:1px solid #c6dec8;border-left:4px solid #287a42;border-radius:8px;color:#174d32 !important;font-weight:800}[class*="st-key-public_website_tabs"] label[data-baseweb="radio"]:has(input:checked) *{color:#174d32 !important}}
     .site-hero {position:relative;isolation:isolate;box-sizing:border-box;min-height:315px;width:100%;display:flex;align-items:center;padding:38px 48px;margin-bottom:16px;background-size:cover;background-position:center 46%;overflow:hidden}
     .site-hero::before {content:"";position:absolute;inset:0;z-index:-1;background:rgba(12,35,21,.56)}
