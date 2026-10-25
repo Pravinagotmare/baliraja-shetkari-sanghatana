@@ -186,10 +186,10 @@ if public_view == "🌐 सार्वजनिक संकेतस्थळ"
     [data-testid="stMain"] [role="radiogroup"] label {background:#e4f1e1;border-radius:10px;padding:.35rem .65rem}
     @media(prefers-reduced-motion:reduce){.news-track{animation:none;width:auto;white-space:normal;flex-wrap:wrap}.news-item{white-space:normal}}
     </style>""", unsafe_allow_html=True)
-    banner_data = encoded_image(BASE / "assets" / "maharashtra-farming-banner.png")
+    banner_data = encoded_image(BASE / "assets" / "maharashtra-farming-banner.jpg")
     logo_data = encoded_image(LOGO)
     st.markdown(
-        f"<section class='site-hero' style='background-image:url(data:image/png;base64,{banner_data})'>"
+        f"<section class='site-hero' style='background-image:url(data:image/jpeg;base64,{banner_data})'>"
         f"<div class='site-hero-brand'><img class='site-logo' src='data:image/jpeg;base64,{logo_data}' alt='बळीराजा शेतकरी संघटनेचा लोगो'>"
         "<div class='site-hero-copy'><p class='site-location'>नागपूर जिल्हा · महाराष्ट्र</p>"
         "<h1 style='color:#fff!important;font-weight:900!important;text-shadow:0 2px 9px rgba(0,0,0,.9)'>बळीराजा शेतकरी संघटना</h1>"
