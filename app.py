@@ -475,6 +475,11 @@ def initialize_admin_database():
             date_field = "registration_date" if table_name == "members" else "payment_date"
             execute(f"ALTER TABLE {table_name} MODIFY {date_field} DATE NULL")
 
+    received_by_column = query('''SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payments' AND COLUMN_NAME='received_by' ''')
+    if not received_by_column:
+        execute("ALTER TABLE payments ADD COLUMN received_by VARCHAR(150) NULL AFTER payment_date")
+
     whatsapp_opt_in_column = query('''SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='members' AND COLUMN_NAME='whatsapp_opt_in' ''')
     if not whatsapp_opt_in_column:
@@ -505,6 +510,26 @@ members_report = report_module.members_report
 payments_report = report_module.payments_report
 excel_report = report_module.excel_report
 member_payments_report = report_module.member_payments_report
+recent_payments_report = getattr(report_module, "recent_payments_report", None)
+if recent_payments_report is None:
+    def recent_payments_report(search="", limit=8):
+        sql = '''SELECT p.receipt_no,m.member_no,m.name,m.mobile,
+            v.name AS village,t.name AS taluka,
+            p.payment_type,p.amount,p.payment_method,
+            p.transaction_no,p.payment_date,p.received_by,p.note
+            FROM payments p
+            JOIN members m ON m.id=p.member_id
+            LEFT JOIN villages v ON v.id=m.village_id
+            LEFT JOIN talukas t ON t.id=v.taluka_id'''
+        params = ()
+        if search:
+            sql += " WHERE CONCAT_WS(' ',m.name,m.member_no,COALESCE(m.mobile,'')) LIKE %s"
+            params = (f"%{search}%",)
+            limit = min(max(int(limit), 1), 100)
+        else:
+            limit = min(max(int(limit), 1), 8)
+        sql += f" ORDER BY p.id DESC LIMIT {limit}"
+        return pd.DataFrame(query(sql, params))
 printable_pdf = report_module.printable_pdf
 from services import receipt as receipt_module
 from services.upi import create_upi_qr
@@ -619,7 +644,7 @@ if page == "🏠 Dashboard":
     </style>
     """, unsafe_allow_html=True)
 
-    logo_data = base64.b64encode(LOGO.read_bytes()).decode("ascii")
+    logo_data = encoded_image(str(LOGO))
     st.markdown(
         f"<section class='dashboard-hero'><img src='data:image/jpeg;base64,{logo_data}' alt=''>"
         f"<div><h1>बळीराजा शेतकरी संघटना</h1><p>कर्मचारी डॅशबोर्ड</p></div>"
@@ -660,14 +685,31 @@ if page == "🏠 Dashboard":
     f3.metric("देणगी", f"₹ {donation:,.2f}")
 
     st.subheader("अलीकडील पेमेंट")
-    recent_payments = payments_report().head(8).rename(columns={
+    with st.form("dashboard_payment_search"):
+        dashboard_payment_name = st.text_input(
+            "सर्व सभासदांमधून नावाने शोधा",
+            key="dashboard_payment_name_input",
+            placeholder="सभासदाचे नाव लिहा",
+        )
+        dashboard_payment_search = st.form_submit_button("🔎 नावाने शोधा")
+    if dashboard_payment_search:
+        st.session_state.dashboard_payment_name_query = dashboard_payment_name.strip()
+
+    payment_query = st.session_state.get("dashboard_payment_name_query", "")
+    if payment_query:
+        dashboard_payments = recent_payments_report(payment_query, limit=100)
+        if dashboard_payments.empty:
+            st.info("या नावासाठी पेमेंट नोंद सापडली नाही.")
+    else:
+        dashboard_payments = recent_payments_report()
+    dashboard_payments = dashboard_payments.rename(columns={
         "receipt_no": "पावती क्रमांक", "member_no": "सभासद क्रमांक",
         "name": "सभासदाचे नाव", "mobile": "मोबाईल", "village": "गाव",
         "taluka": "तालुका", "payment_type": "पेमेंट प्रकार", "amount": "रक्कम",
         "payment_method": "भरणा पद्धत", "transaction_no": "व्यवहार क्रमांक",
-        "payment_date": "दिनांक", "note": "नोंद",
+        "payment_date": "दिनांक", "received_by": "स्वीकारणारे", "note": "नोंद",
     })
-    show_table(recent_payments, use_container_width=True, hide_index=True)
+    show_table(dashboard_payments, use_container_width=True, hide_index=True)
 
 # ---------------- Members ----------------
 elif page == "👨‍🌾 Members":
@@ -741,6 +783,7 @@ elif page == "👨‍🌾 Members":
             format_func=lambda x: {"Cash": "रोख", "UPI": "UPI", "Bank": "बँक"}[x]
         )
         registration_transaction_no = pay_b.text_input("UTR / व्यवहार क्रमांक")
+        registration_received_by = pay_b.text_input("Received By (name) *")
         registration_payment_date = pay_a.date_input("पेमेंट तारीख", datetime.date.today())
         registration_payment_note = pay_b.text_input("पेमेंट नोंद")
 
@@ -753,6 +796,8 @@ elif page == "👨‍🌾 Members":
             st.error("नाव आवश्यक आहे.")
         elif registration_payment_amount <= 0:
             st.error("पेमेंट रक्कम अनिवार्य आहे आणि शून्यापेक्षा जास्त असावी. सभासद नोंदणी झाली नाही.")
+        elif not registration_received_by.strip():
+            st.error("Received By नाव आवश्यक आहे.")
         else:
             member_no = next_number(
                 "MEM","members","member_no"
@@ -799,12 +844,13 @@ elif page == "👨‍🌾 Members":
             execute(
                 '''INSERT INTO payments
                 (receipt_no,member_id,payment_type,amount,payment_method,
-                 transaction_no,payment_date,note,created_by)
-                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+                 transaction_no,payment_date,received_by,note,created_by)
+                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
                 (receipt_no, member_id, registration_payment_type,
                  registration_payment_amount, registration_payment_method,
                  registration_transaction_no.strip(),
                  str(registration_payment_date),
+                 registration_received_by.strip(),
                  registration_payment_note.strip(), user["id"])
             )
 
@@ -1062,6 +1108,7 @@ elif page == "💰 Payments":
         )
 
         note = b.text_area("नोंद")
+        received_by = b.text_input("Received By (name) *")
 
         save = st.form_submit_button(
             "🧾 पेमेंट नोंदवा"
@@ -1069,6 +1116,10 @@ elif page == "💰 Payments":
 
     if save:
         member = members[labels.index(selected)]
+
+        if not received_by.strip():
+            st.error("Received By नाव आवश्यक आहे.")
+            st.stop()
 
         receipt_no = next_number(
             "RCT","payments","receipt_no"
@@ -1078,8 +1129,8 @@ elif page == "💰 Payments":
             '''INSERT INTO payments
             (receipt_no,member_id,payment_type,amount,
              payment_method,transaction_no,payment_date,
-             note,created_by)
-            VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+             received_by,note,created_by)
+            VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
             (
                 receipt_no,
                 member["id"],
@@ -1088,6 +1139,7 @@ elif page == "💰 Payments":
                 payment_method,
                 transaction_no,
                 str(payment_date),
+                received_by.strip(),
                 note,
                 user["id"]
             )
@@ -1133,20 +1185,6 @@ elif page == "🧾 Receipts":
         row = df[
             df["receipt_no"] == receipt_no
         ].iloc[0].to_dict()
-
-        receiver_rows = query('''SELECT u.full_name,u.role
-            FROM payments p LEFT JOIN users u ON u.id=p.created_by
-            WHERE p.receipt_no=%s LIMIT 1''', (receipt_no,))
-        if receiver_rows:
-            receiver = receiver_rows[0]
-            row["received_by"] = receiver["full_name"] or "—"
-            row["receiver_role"] = {
-                "admin": "प्रशासक",
-                "staff": "कर्मचारी",
-            }.get(receiver["role"], receiver["role"] or "—")
-        else:
-            row["received_by"] = "—"
-            row["receiver_role"] = "—"
 
         filename = f"{receipt_no}_{copies}up.pdf"
         path = RECEIPTS / filename

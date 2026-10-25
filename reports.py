@@ -79,7 +79,7 @@ def payments_report():
         '''SELECT p.receipt_no,m.member_no,m.name,m.mobile,
         v.name AS village,t.name AS taluka,
         p.payment_type,p.amount,p.payment_method,
-        p.transaction_no,p.payment_date,p.note
+        p.transaction_no,p.payment_date,p.received_by,p.note
         FROM payments p
         JOIN members m ON m.id=p.member_id
         LEFT JOIN villages v ON v.id=m.village_id
@@ -87,26 +87,45 @@ def payments_report():
         ORDER BY p.id DESC'''
     ))
 
+
+def recent_payments_report(search="", limit=8):
+    sql = '''SELECT p.receipt_no,m.member_no,m.name,m.mobile,
+        v.name AS village,t.name AS taluka,
+        p.payment_type,p.amount,p.payment_method,
+        p.transaction_no,p.payment_date,p.received_by,p.note
+        FROM payments p
+        JOIN members m ON m.id=p.member_id
+        LEFT JOIN villages v ON v.id=m.village_id
+        LEFT JOIN talukas t ON t.id=v.taluka_id'''
+    params = ()
+    if search:
+        sql += " WHERE CONCAT_WS(' ',m.name,m.member_no,COALESCE(m.mobile,'')) LIKE %s"
+        params = (f"%{search}%",)
+        limit = min(max(int(limit), 1), 100)
+    else:
+        limit = min(max(int(limit), 1), 8)
+    sql += f" ORDER BY p.id DESC LIMIT {limit}"
+    return pd.DataFrame(query(sql, params))
+
 def excel_report():
     output = BytesIO()
+    payments = payments_report()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         members_report().to_excel(
             writer, index=False, sheet_name="Members"
         )
 
-        payments_report().to_excel(
+        payments.to_excel(
             writer, index=False, sheet_name="Payments"
         )
 
-        p = payments_report()
-
-        if not p.empty:
-            p.groupby("payment_type")["amount"].sum().reset_index().to_excel(
+        if not payments.empty:
+            payments.groupby("payment_type")["amount"].sum().reset_index().to_excel(
                 writer, index=False, sheet_name="Summary"
             )
 
-            p.groupby(
+            payments.groupby(
                 ["taluka","village"]
             )["amount"].sum().reset_index().to_excel(
                 writer, index=False, sheet_name="Village Collection"

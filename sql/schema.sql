@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS payments(
  payment_method ENUM('Cash','UPI','Bank') NOT NULL,
  transaction_no VARCHAR(100),
  payment_date DATE NULL,
+ received_by VARCHAR(150),
  note TEXT,
  created_by INT,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
