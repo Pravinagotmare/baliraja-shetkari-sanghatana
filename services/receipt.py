@@ -50,8 +50,18 @@ def _english_value(value):
 
 def _text(value):
     if value is None:
-        return ""
-    return str(value)
+        return "—"
+    try:
+        # Database NULLs can become NaN when the receipt row passes through
+        # pandas; never print that implementation value on the receipt.
+        if value != value:
+            return "—"
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if not text or text.casefold() in {"nan", "none", "nat"}:
+        return "—"
+    return text
 
 
 def _text_runs(text):
