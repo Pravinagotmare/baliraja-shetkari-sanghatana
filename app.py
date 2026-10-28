@@ -816,6 +816,45 @@ elif page == "👨‍🌾 Members":
         registration_payment_date = pay_a.date_input("पेमेंट तारीख", datetime.date.today())
         registration_payment_note = pay_b.text_input("पेमेंट नोंद")
 
+        add_additional_payment = st.checkbox(
+            "आणखी एक पेमेंट जोडा", key="member_add_additional_payment"
+        )
+        if add_additional_payment:
+            st.markdown("**अतिरिक्त पेमेंट तपशील**")
+            extra_pay_a, extra_pay_b = st.columns(2)
+            additional_payment_type = extra_pay_a.selectbox(
+                "अतिरिक्त पेमेंट प्रकार",
+                ["Membership Fee", "Other Contribution", "Donation"],
+                format_func=lambda x: {
+                    "Membership Fee": "सभासद फी",
+                    "Other Contribution": "इतर वर्गणी",
+                    "Donation": "देणगी"
+                }[x],
+                key="member_additional_payment_type"
+            )
+            additional_payment_amount = extra_pay_b.number_input(
+                "अतिरिक्त आलेली रक्कम ₹ *", min_value=0.0, value=0.0,
+                step=100.0, key="member_additional_payment_amount"
+            )
+            additional_payment_method = extra_pay_a.selectbox(
+                "अतिरिक्त पेमेंट पद्धत", ["Cash", "UPI", "Bank"],
+                format_func=lambda x: {"Cash": "रोख", "UPI": "UPI", "Bank": "बँक"}[x],
+                key="member_additional_payment_method"
+            )
+            additional_transaction_no = extra_pay_b.text_input(
+                "अतिरिक्त UTR / व्यवहार क्रमांक", key="member_additional_transaction_no"
+            )
+            additional_received_by = extra_pay_b.text_input(
+                "अतिरिक्त पेमेंट स्वीकारणारे *", key="member_additional_received_by"
+            )
+            additional_payment_date = extra_pay_a.date_input(
+                "अतिरिक्त पेमेंट तारीख", datetime.date.today(),
+                key="member_additional_payment_date"
+            )
+            additional_payment_note = extra_pay_b.text_input(
+                "अतिरिक्त पेमेंट नोंद", key="member_additional_payment_note"
+            )
+
         save = st.form_submit_button(
             "💾 सभासद नोंदवा"
         )
@@ -827,6 +866,10 @@ elif page == "👨‍🌾 Members":
             st.error("पेमेंट रक्कम अनिवार्य आहे आणि शून्यापेक्षा जास्त असावी. सभासद नोंदणी झाली नाही.")
         elif not registration_received_by.strip():
             st.error("Received By नाव आवश्यक आहे.")
+        elif add_additional_payment and additional_payment_amount <= 0:
+            st.error("अतिरिक्त पेमेंट रक्कम शून्यापेक्षा जास्त असावी.")
+        elif add_additional_payment and not additional_received_by.strip():
+            st.error("अतिरिक्त पेमेंट स्वीकारणाऱ्याचे नाव आवश्यक आहे.")
         else:
             member_no = next_number(
                 "MEM","members","member_no"
@@ -883,8 +926,23 @@ elif page == "👨‍🌾 Members":
                  registration_payment_note.strip(), user["id"])
             )
 
+            receipt_numbers = [receipt_no]
+            if add_additional_payment:
+                additional_receipt_no = next_number("RCT", "payments", "receipt_no")
+                execute(
+                    '''INSERT INTO payments
+                    (receipt_no,member_id,payment_type,amount,payment_method,
+                     transaction_no,payment_date,received_by,note,created_by)
+                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+                    (additional_receipt_no, member_id, additional_payment_type,
+                     additional_payment_amount, additional_payment_method,
+                     additional_transaction_no.strip(), str(additional_payment_date),
+                     additional_received_by.strip(), additional_payment_note.strip(), user["id"])
+                )
+                receipt_numbers.append(additional_receipt_no)
+
             success_message = f"सभासद नोंदणी यशस्वी — {member_no}"
-            success_message += f" | पावती क्रमांक — {receipt_no}"
+            success_message += f" | पावती क्रमांक — {', '.join(receipt_numbers)}"
             st.success(success_message)
 
     st.subheader("सभासद यादी")
